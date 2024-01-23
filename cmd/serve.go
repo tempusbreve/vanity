@@ -116,8 +116,8 @@ func handler(c *cobra.Command) http.Handler {
 	}
 
 	importHandler := handlers.NewImportHandler(nil,
-		handlers.NewJSONStore(jsonPath),
-		handlers.NewDNSStore(),
+		handlers.NewJSONStore(handlers.NewFileReader(jsonPath)),
+		handlers.NewDNSStore(nil),
 	)
 
 	lmw := jmw.Logger(jmw.TextLevel("minimal"), c.OutOrStdout())

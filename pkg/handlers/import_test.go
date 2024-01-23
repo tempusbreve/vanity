@@ -29,6 +29,7 @@ func TestImportHandler_ServeHTTP(t *testing.T) {
 
 	for name, tc := range map[string]testCase{
 		"empty":      {method: http.MethodGet, url: "", expect: http.StatusNotFound},
+		"bare":       {method: http.MethodGet, url: "https://example.org/", expect: http.StatusNotFound},
 		"protected":  {method: http.MethodGet, url: "https://example.com/foo/bar", expect: http.StatusUnauthorized},
 		"missing":    {method: http.MethodGet, url: "https://example.org/foo/bar", expect: http.StatusNotFound},
 		"vanity":     {method: http.MethodGet, url: "https://example.org/tempusbreve/vanity?go-get=1", expect: http.StatusOK},

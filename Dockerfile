@@ -2,7 +2,7 @@
 # builder
 #
 
-FROM golang:buster AS builder
+FROM golang AS builder
 
 ENV GO111MODULE=on \
     GOFLAGS="-tags=netgo -trimpath" \
@@ -13,7 +13,7 @@ COPY . /src/
 
 WORKDIR /src/
 
-RUN go build -i -ldflags "${LDFLAGS}" -o vanity .
+RUN go build -ldflags "${LDFLAGS}" -o vanity .
 
 #
 # Final Image

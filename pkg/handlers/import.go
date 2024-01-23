@@ -1,15 +1,9 @@
 package handlers
 
 import (
-	"context"
-	"encoding/json"
 	"html/template"
-	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"strings"
-	"time"
 )
 
 // Import describes an import reference in Go.
@@ -41,16 +35,18 @@ func (i *ImportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	lookup := r.URL
 	lookup.Host = r.Host
 
-	if imp, ok := i.store.Lookup(lookup); ok {
-		fromGo := r.URL.Query().Get("go-get") == "1"
+	if r.URL.Path != "" || true {
+		if imp, ok := i.store.Lookup(lookup); ok {
+			fromGo := r.URL.Query().Get("go-get") == "1"
 
-		w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusOK)
 
-		if err := i.tmpl.Execute(w, &importData{Import: imp, FromGO: fromGo}); err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			if err := i.tmpl.Execute(w, &importData{Import: imp, FromGO: fromGo}); err != nil {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
+
+			return
 		}
-
-		return
 	}
 
 	if i.fallback != nil {
@@ -100,86 +96,6 @@ func (s importStores) Lookup(u *url.URL) (Import, bool) {
 	for _, instance := range s {
 		if imp, ok := instance.Lookup(u); ok {
 			return imp, ok
-		}
-	}
-
-	return Import{}, false
-}
-
-const (
-	minRecordLength = 3
-	timeout         = 15 * time.Second
-)
-
-// DNSImportStore looks up import records from DNS.
-type DNSImportStore struct {
-	resolver net.Resolver
-}
-
-// NewDNSStore returns an initialized DNSImportStore.
-func NewDNSStore() ImportStore { return &DNSImportStore{resolver: net.Resolver{PreferGo: true}} }
-
-// Lookup fulfills the interface.
-func (s *DNSImportStore) Lookup(u *url.URL) (Import, bool) {
-	deadline, cancelFunc := context.WithTimeout(context.Background(), timeout)
-	defer cancelFunc()
-
-	records, err := s.resolver.LookupTXT(deadline, u.Host)
-	if err != nil {
-		return Import{}, false
-	}
-
-	for _, record := range records {
-		pair := strings.SplitN(record, "=", 2)
-		if pair[0] != "go-import" {
-			continue
-		}
-
-		if !strings.HasPrefix(pair[1], u.Host+u.Path) {
-			continue
-		}
-
-		rec := strings.SplitN(pair[1], " ", 4)
-		if len(rec) < minRecordLength {
-			continue
-		}
-
-		imp := Import{Prefix: rec[0], VCS: rec[1], Root: rec[2]}
-
-		if len(rec) > minRecordLength {
-			imp.Proxy = rec[3]
-		}
-
-		return imp, true
-	}
-
-	return Import{}, false
-}
-
-// JSONStore implements an ImportStore reading from JSON formatted file.
-type JSONStore struct {
-	path string
-}
-
-// NewJSONStore creates an initialized JSONStore.
-func NewJSONStore(path string) *JSONStore { return &JSONStore{path: path} }
-
-// Lookup fulfills the interface.
-func (s *JSONStore) Lookup(u *url.URL) (Import, bool) {
-	fd, err := os.Open(s.path)
-	if err != nil {
-		return Import{}, false
-	}
-	defer fd.Close()
-
-	var recs []Import
-	if err = json.NewDecoder(fd).Decode(&recs); err != nil {
-		return Import{}, false
-	}
-
-	for _, rec := range recs {
-		if rec.Prefix == u.Scheme+"://"+u.Host+u.Path {
-			return rec, true
 		}
 	}
 
