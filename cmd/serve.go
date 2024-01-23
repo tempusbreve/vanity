@@ -24,6 +24,7 @@ import (
 func ServeCmd() *cobra.Command {
 	bindListen := "127.0.0.1:39999"
 	jsonPath := "import_db.json"
+	staticPath := ""
 
 	srv := &cobra.Command{
 		Use:   "serve",
@@ -35,7 +36,7 @@ func ServeCmd() *cobra.Command {
 				done   = make(chan bool, 1)
 			)
 
-			httpSrv := newServer(c, handler(c), logger)
+			httpSrv := newServer(c, handler(c, logger), logger)
 
 			signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 			go shutdown(httpSrv, quit, done, logger)
@@ -54,6 +55,7 @@ func ServeCmd() *cobra.Command {
 
 	srv.Flags().StringVarP(&bindListen, "bind_listen", "b", bindListen, "set interface and port to listen on")
 	srv.Flags().StringVarP(&jsonPath, "json_path", "j", jsonPath, "path to the JSON db")
+	srv.Flags().StringVarP(&staticPath, "static_files", "s", staticPath, "fallback static files directory path")
 
 	return srv
 }
@@ -90,7 +92,7 @@ func newServer(c *cobra.Command, h http.Handler, logger *log.Logger) *http.Serve
 		maxHeaderBytes = 1 << 18
 	)
 
-	if listen, err = c.Flags().GetString("bind_listen"); err != nil {
+	if listen, err = c.Flags().GetString("bind_listen"); err == nil {
 		listen = "0.0.0.0:39999"
 	}
 
@@ -104,21 +106,34 @@ func newServer(c *cobra.Command, h http.Handler, logger *log.Logger) *http.Serve
 	}
 }
 
-func handler(c *cobra.Command) http.Handler {
+func handler(c *cobra.Command, logger *log.Logger) http.Handler {
 	const (
 		window = 10 * time.Minute
 		limit  = 500
 	)
+
+	stores := []handlers.ImportStore{}
 
 	jsonPath, err := c.Flags().GetString("json_path")
 	if err != nil {
 		jsonPath = "import_db.json"
 	}
 
-	importHandler := handlers.NewImportHandler(nil,
-		handlers.NewJSONStore(handlers.NewFileReader(jsonPath)),
-		handlers.NewDNSStore(nil),
-	)
+	if fi, err := os.Stat(jsonPath); err == nil {
+		if !fi.IsDir() && fi.Size() > 0 {
+			stores = append(stores, handlers.NewJSONStore(handlers.NewFileReader(jsonPath)))
+		}
+	}
+
+	stores = append(stores, handlers.NewDNSStore(nil))
+
+	var fallback http.Handler
+	if staticPath, err := c.Flags().GetString("static_files"); err == nil {
+		fallback = http.FileServer(http.Dir(staticPath))
+		logger.Printf("fallback serving from: %q", staticPath)
+	}
+
+	importHandler := handlers.NewImportHandler(fallback, stores...)
 
 	lmw := jmw.Logger(jmw.TextLevel("minimal"), c.OutOrStdout())
 
