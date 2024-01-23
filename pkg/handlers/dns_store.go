@@ -56,6 +56,10 @@ func (s *DNSImportStore) Lookup(u *url.URL) (Import, bool) {
 			continue
 		}
 
+		if !strings.EqualFold(rec[0], u.Host+u.Path) {
+			continue
+		}
+
 		imp := Import{Prefix: rec[0], VCS: rec[1], Root: rec[2]}
 
 		if len(rec) > minRecordLength {

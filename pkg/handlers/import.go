@@ -35,7 +35,7 @@ func (i *ImportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	lookup := r.URL
 	lookup.Host = r.Host
 
-	if r.URL.Path != "" || true {
+	if r.URL.String() != "" {
 		if imp, ok := i.store.Lookup(lookup); ok {
 			fromGo := r.URL.Query().Get("go-get") == "1"
 
