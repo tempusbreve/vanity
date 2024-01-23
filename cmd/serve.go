@@ -92,7 +92,7 @@ func newServer(c *cobra.Command, h http.Handler, logger *log.Logger) *http.Serve
 		maxHeaderBytes = 1 << 18
 	)
 
-	if listen, err = c.Flags().GetString("bind_listen"); err == nil {
+	if listen, err = c.Flags().GetString("bind_listen"); err != nil || listen == "" {
 		listen = "0.0.0.0:39999"
 	}
 
@@ -128,7 +128,7 @@ func handler(c *cobra.Command, logger *log.Logger) http.Handler {
 	stores = append(stores, handlers.NewDNSStore(nil))
 
 	var fallback http.Handler
-	if staticPath, err := c.Flags().GetString("static_files"); err == nil {
+	if staticPath, err := c.Flags().GetString("static_files"); err == nil && staticPath != "" {
 		fallback = http.FileServer(http.Dir(staticPath))
 		logger.Printf("fallback serving from: %q", staticPath)
 	}
